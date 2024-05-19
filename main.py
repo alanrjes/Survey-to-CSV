@@ -1,4 +1,6 @@
+import os
 from tkinter import *
+import pdfkit
 
 # global utility function:
 def change_window(currentFrame, nextFrame):
@@ -35,9 +37,11 @@ class CreateSurvey(Frame):
         Label(self, text="Create Survey").grid(row=1, columnspan=2)
 
         Label(self, text="Survey title:").grid(row=2, column=0)
-        self.title = Entry(self).grid(row=2, column=1)
-        Label(self, text="Instructor name:").grid(row=3, column=0)
-        self.instructor = Entry(self).grid(row=3, column=1)
+        self.title = Entry(self)
+        self.title.grid(row=2, column=1)
+        Label(self, text="Subtitle:").grid(row=3, column=0)
+        self.subtitle = Entry(self)
+        self.subtitle.grid(row=3, column=1)
 
         Button(self, text="Add Question", command=self.add_question).grid(row=4, column=0)
         Button(self, text="Delete Question", command=self.delete_question).grid(row=4, column=1)
@@ -55,13 +59,62 @@ class CreateSurvey(Frame):
             q.destroy()
     
     def back_to_menu(self):
+        # clear question fields
         for q in self.questions:
             q.destroy()
         self.questions = []
+        self.title.delete(0, 'end')
+        self.subtitle.delete(0, 'end')
         change_window(self, self.root.mmFrame)
     
     def print_survey(self):
-        # do something to save/print
+        # file naming shenanigans
+        filename = self.title.get()
+        if filename == "":
+            filename = "Survey"
+        i = 0
+        for f in os.listdir("./print"):
+            if f == filename+".pdf" or f == filename+"("+str(i)+")"+".pdf":
+                i+=1
+        if i:
+            filename +="("+str(i)+")"
+        
+        # build PDF
+        def print_questions():  # helper for printing out questions & bubbles
+            htmlstr = ""
+            bubbles = '''<table>
+                            <tr>'''+"".join(["<td>"+str(i)+"</td>" for i in range(1,6)])+'''</tr>
+                            <tr>'''+"<td>O</td>"*5+'''</tr>
+                        </table>'''
+            for q in self.questions:
+                htmlstr += '''<tr>
+                                <td>'''+q.get()+'''</td>
+                                <td>'''+bubbles+'''</td>
+                            </tr>'''
+            return "<table>"+htmlstr+"</table>"
+
+        HTMLstring = '''
+            <h1>'''+self.title.get()+'''</h1>
+            <h2>'''+self.subtitle.get()+'''</h2>
+            <body>
+                <p>Answer the questions in this survey using the following scale of agreement:</p>
+                <ul>
+                    <li>1 - Strongly disagree</li>
+                    <li>2 - Somewhat disagree</li>
+                    <li>3 - Neutral</li>
+                    <li>4 - Somewhat agree</li>
+                    <li>5 - Strongly agree</li>
+                </ul>
+                '''+print_questions()+'''
+            </body>
+        '''
+        pdfkit.from_string(HTMLstring, "./print/"+filename+".pdf",
+            options = { 'page-size': 'Letter',
+                        'margin-top': '1in',
+                        'margin-right': '1in',
+                        'margin-bottom': '1in',
+                        'margin-left': '1in'})
+        # done
         self.back_to_menu()
 
 class ScanSurvey(Frame):
