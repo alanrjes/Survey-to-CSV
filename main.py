@@ -51,15 +51,18 @@ class CreateSurvey(Frame):
         Label(self, text="Subtitle:").grid(row=3, column=0)
         self.subtitle = Entry(self)
         self.subtitle.grid(row=3, column=1)
+        Label(self, text="Instructions:").grid(row=4, column=0)
+        self.instructions = Entry(self)
+        self.instructions.grid(row=4, column=1)
 
-        Button(self, text="Add Question", command=self.add_question).grid(row=4, column=0)
-        Button(self, text="Delete Question", command=self.delete_question).grid(row=4, column=1)
+        Button(self, text="Add Question", command=self.add_question).grid(row=5, column=0)
+        Button(self, text="Delete Question", command=self.delete_question).grid(row=5, column=1)
         self.questions = []
     
     def add_question(self):
         i = len(self.questions)
         q = Entry(self)
-        q.grid(row=i+5, column=0)
+        q.grid(row=i+6, column=0)
         self.questions.append(q)
     
     def delete_question(self):
@@ -74,6 +77,7 @@ class CreateSurvey(Frame):
         self.questions = []
         self.title.delete(0, 'end')
         self.subtitle.delete(0, 'end')
+        self.instructions.delete(0, 'end')
         change_window(self, self.root.mmFrame)
     
     def print_survey(self):
@@ -91,41 +95,43 @@ class CreateSurvey(Frame):
         
         # build PDF
         def print_questions():  # helper for printing out questions & bubbles
-            labels = "".join(["<td style='padding: 10px; text-align: center; border-bottom: 1px solid black'>"+str(i)+"</td>" for i in range(1,6)]) + "<td style='border-bottom: 1px solid black'>"
-            bubbles = "<td style='padding: 10px; font-size: 12pt'>&#x25EF</td>"*5 + "<td style='padding: 10px; font-size: 12pt'>&#x25C2</td>"
+            scale = ["Strongly Disagree", "Somewhat Disagree", "Neutral", "Somewhat Agree", "Strongly Agree"]
+            labels = "".join(["<td style='padding: 5px; text-align: center; border-bottom: 1px solid black'>"+s+"</td>" for s in scale]) + "<td style='border-bottom: 1px solid black'>"
+            bubbles = "<td style='padding: 5px; text-align: center; font-size: 12pt'>&#x25EF</td>"*5 + "<td style='padding: 5px; font-size: 12pt'>&#x25C2</td>"
 
-            htmlstr = "<tr><td style='padding: 10px; border-right: 1px solid black; border-bottom: 1px solid black'><b>Questions</b></td>"+labels
+            htmlstr = "<tr><td style='padding: 5px; border-right: 1px solid black; border-bottom: 1px solid black'><b>Questions</b></td>"+labels
 
             for q in self.questions:
-                htmlstr += '''<tr style="padding: 10px">
-                                <td style="padding: 10px; width: 100%; border-right: 1px solid black">'''+q.get()+'''</td>
+                htmlstr += '''<tr style="padding: 5px">
+                                <td style="padding: 5px; width: 100%; border-right: 1px solid black">'''+q.get()+'''</td>
                                 '''+bubbles+'''
                             </tr>'''
             
             return "<table style='width: 100%; border-collapse: collapse; border: 1px solid black'>"+htmlstr+"</table>"
 
+#                <p>Answer the questions in this survey using the following scale of agreement:</p>
+#                <ul style="list-style-type:none">
+#                    <li>1 - Strongly disagree</li>
+#                    <li>2 - Somewhat disagree</li>
+#                    <li>3 - Neutral</li>
+#                    <li>4 - Somewhat agree</li>
+#                    <li>5 - Strongly agree</li>
+#                </ul>
+
         HTMLstring = '''
             <h1>'''+self.title.get()+'''</h1>
             <h2>'''+self.subtitle.get()+'''</h2>
             <body>
-                <p>Answer the questions in this survey using the following scale of agreement:</p>
-                <ul style="list-style-type:none">
-                    <li>1 - Strongly disagree</li>
-                    <li>2 - Somewhat disagree</li>
-                    <li>3 - Neutral</li>
-                    <li>4 - Somewhat agree</li>
-                    <li>5 - Strongly agree</li>
-                </ul>
-                <p>Make sure to fill bubbles in entirely in dark pen or pencil, and do not fill outside the bubbles.</p>
+                <p>'''+self.instructions.get()+'''</p>
                 '''+print_questions()+'''
             </body>
         '''
         pdfkit.from_string(HTMLstring, "./print/"+filename+".pdf",
             options = { 'page-size': 'Letter',
-                        'margin-top': '1in',
-                        'margin-right': '1in',
-                        'margin-bottom': '1in',
-                        'margin-left': '1in'},
+                        'margin-top': '0.5in',
+                        'margin-right': '0.5in',
+                        'margin-bottom': '0.5in',
+                        'margin-left': '0.5in'},
         )
         self.back_to_menu()
 
@@ -237,9 +243,6 @@ class ScanSurvey(Frame):
         
         # convert the rest to bool array
         bubbleGrid = [[0]*5]*(len(rows)+1)
-        print([(b.x, b.y) for b in bubbles])
-        print(rows)
-        print(cols)
         for b in bubbles:
             c, r = len(cols), len(rows)
             for i in range(len(rows)):
