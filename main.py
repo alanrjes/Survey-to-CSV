@@ -106,6 +106,7 @@ class CreateSurvey(Frame):
                                 <td style="padding: 5px; width: 100%; border-right: 1px solid black">'''+q.get()+'''</td>
                                 '''+bubbles+'''
                             </tr>'''
+            htmlstr += "<tr style='border-right: 1px solid black; border-left: 1px solid black; border-bottom: 1px solid black'><td style='border-right: 1px solid black'></td>"+"<td style='text-align: center'>&#x25B4</td>"*5+"<td></td></tr>"
             
             return "<table style='width: 100%; border-collapse: collapse; border: 1px solid black'>"+htmlstr+"</table>"
 
@@ -187,74 +188,65 @@ class ScanSurvey(Frame):
         contours, _ = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         
         bubbles = []
+        alignment = []
         for c in contours[1::]:
             if cv2.contourArea(c, True) < 0:  # duplicate contour indicating hole/uneven filling
-                pass
-            cv2.drawContours(masked, [c], 0, (0, 0, 255), 5)
+                continue
             # find center
             M = cv2.moments(c)
             if M['m00'] != 0.0:
                 x = int(M['m10']/M['m00'])
                 y = int(M['m01']/M['m00'])
-                bubbles.append(Bubble(x,y,c))
+                if len(c) < 20:  # is an alignment triangle
+                    alignment.append(Bubble(x,y,c))
+                    cv2.drawContours(masked, [c], 0, (0, 0, 255), 5)
+                else:  # is a filled bubble
+                    bubbles.append(Bubble(x,y,c))
+                    cv2.drawContours(masked, [c], 0, (0, 255, 0), 5)
 
-        r = 4  # rounding points
+        cv2.imwrite("./temp/contours.jpg", masked)
 
-        # detect alignment triangles to determine rows
-        rows = []
-        bubbles = sorted(bubbles, key=lambda c: c.x)
-        sortedBubbles = bubbles[::-1]
-        try:
-            c1 = sortedBubbles[0]
-        except IndexError:
-            messagebox.showerror("Whoops", "Something's wrong.")
-            self.abort()
-        for c2 in sortedBubbles[1::]:
-            if c1.x-r < c2.x < c1.x+r:
-                if abs(c1.y-c2.y) > r:
-                    rows.append(int(c1.y+(c2.y-c1.y)/2))
-                # else is a duplicate contour
-                bubbles.pop()  # note: keep using bubbles as base list, sortedBubbles is only temp!
-                if len(bubbles) == 1:
-                    bubbles.pop()  # corner case for blank sheet (no filled bubbles)
-            else:
-                bubbles.pop()
-                break
+        approx = 4  # rounding points
 
-        # discard any other duplicate contours
+        # discard duplicate contours resulting from uneven filling
         n = len(bubbles)
         i = 0
         while i < n-1:
             c1 = bubbles[i]
             c2 = bubbles[i+1]
-            if abs(c1.x-c2.x) <= r and abs(c1.y-c2.y) <= r:
+            if abs(c1.x-c2.x) <= approx and abs(c1.y-c2.y) <= approx:
                 del bubbles[i+1]
                 n -= 1
             i += 1
 
-        for c in bubbles:
-            cv2.drawContours(masked, [c.contour], 0, (0, 255, 0), 5)
-        cv2.imwrite("./temp/contours.jpg", masked)
-
-        # determine columns using initial bubble box contour
-        bx = [x[0][0] for x in bubbleBox]
-        cw = (max(bx) - min(bx))/6
-        cols = [int(x+cw*i+cw/2) for i in range(1,5)]
+        # build grid
+        alignSorted = sorted(alignment, key=lambda c: c.y)[::-1]
+        cols = alignSorted[0:5]
+        rows = alignSorted[5::]
+        for r in rows:  # format error check
+            if cols[-1].x > r.x:
+                messagebox.showerror("Unexpected format", "Alignment symbols were not detected correctly.")
+                self.abort()
         
-        # convert the rest to bool array
-        bubbleGrid = [[0]*5]*(len(rows)+1)
+        bubbleGrid = [[0]*5 for i in range(len(rows))]
+
         for b in bubbles:
-            c, r = len(cols), len(rows)
+            r,c = None, None
             for i in range(len(rows)):
-                if b.y < rows[i]:
+                if abs(b.y - rows[i].y) <= approx:
                     r = i
-            for j in range(4):
-                if b.x < cols[j]:
+                    break
+            for j in range(5):
+                if abs(b.x - cols[j].x) <= approx:
                     c = j
+                    break
+            if r==None or c==None:  # grid error check
+                messagebox.showerror("Irregular grid", "Filled bubbles did not match alignment grid.")
+                self.abort()
             bubbleGrid[r][c] = 1
 
-        os.remove("./temp/contours.jpg")
-        return bubbleGrid
+#        os.remove("./temp/contours.jpg")
+        return bubbleGrid[::-1]
     
     def abort(self):
         for f in os.listdir("./temp/"):
