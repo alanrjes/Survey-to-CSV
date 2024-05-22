@@ -17,26 +17,26 @@ Specs? Libraries?
 To generate a survey:
 
 - From the main menu, click "Create New Survey".
-- Enter the survey title, which will be printed at the top of the page.
-- Enter the instructor name, which will be printed at the top of the page.
+- Enter a title, subtitle, and instructions if desired, which will be printed at the top of the page.
 - Enter each question for the survey, clicking "Add Question" until all questions are listed.
 - Click "Save and Print Survey".
-- Retrieve the resulting PDF file from the "Surveys" directory.
+- Retrieve the resulting PDF file from the "print" subdirectory.
 
 Print the resulting survey, distribute to students, and scan completed surveys to a PDF file.
 
 - For best results, use a professional scanner such as a flatbed. Phone camera scans may turn out warped and provide inaccurate results.
+- Scan one survey per page.
 
 To collect data from surveys:
 
 - From the main menu, click "Scan Surveys".
 - Upload the PDF of the completed surveys.
-- Select the applicable survey template.
-- Click "Proceed".
+- Click "Scan Selected PDF".
 - Collect the resulting CSV file from the "Scans" directory.
 
 Upload the CSV file to the spreadsheet program of your choice to analyze the results.
 
-To delete, modify, or duplicate existing survey templates:
+To delete, modify, or print an existing survey template:
 
 - From the main menu, click "Manage Survey Templates".
+- TBD
