@@ -1,6 +1,7 @@
 import os
 from tkinter import *
 from tkinter import filedialog
+from tkinter import messagebox
 import pdfkit
 import cv2
 from pdf2image import convert_from_path
@@ -10,6 +11,10 @@ import numpy as np
 def change_window(currentFrame, nextFrame):
     currentFrame.grid_forget()
     nextFrame.grid()
+    try:
+        nextFrame.scanButton.grid_forget()
+    except AttributeError:
+        pass  # if it's not there, no need to hide it
 
 class Application(Tk):
     def __init__(self):
@@ -86,8 +91,8 @@ class CreateSurvey(Frame):
         
         # build PDF
         def print_questions():  # helper for printing out questions & bubbles
-            labels = "".join(["<td style='padding: 10px; text-align: center; border-bottom: 1px solid black'>"+str(i)+"</td>" for i in range(1,6)])
-            bubbles = "<td style='padding: 10px; font-size: 12pt'>&#x25EF</td>"*5  # for debugging, filled circle: 25CF
+            labels = "".join(["<td style='padding: 10px; text-align: center; border-bottom: 1px solid black'>"+str(i)+"</td>" for i in range(1,6)]) + "<td style='border-bottom: 1px solid black'>"
+            bubbles = "<td style='padding: 10px; font-size: 12pt'>&#x25EF</td>"*5 + "<td style='padding: 10px; font-size: 12pt'>&#x25C2</td>"
 
             htmlstr = "<tr><td style='padding: 10px; border-right: 1px solid black; border-bottom: 1px solid black'><b>Questions</b></td>"+labels
 
@@ -128,7 +133,7 @@ class ScanSurvey(Frame):
     def __init__(self, root):
         super().__init__(root)
         self.root=root
-        Button(self, text="Back to Menu", width=25, command=lambda: change_window(self, root.mmFrame)).grid()
+        Button(self, text="Back to Menu", width=25, command=self.abort).grid()
         Label(self, text="Scan Surveys").grid()
         Button(self, text="Upload PDF", width=25, command=self.select_file).grid()
         self.scanButton = Button(self, text="Scan selected PDF", width=25, command=self.scan_pages)
@@ -145,8 +150,16 @@ class ScanSurvey(Frame):
             data = self.scan_image(f)
             os.remove("./temp/"+f)
             print(data)
+        # do something to save to CSV
+        change_window(self, self.root.mmFrame)
 
     def scan_image(self, f):
+        class Bubble:  # local helper data structure limited to scope of scan_image method
+            def __init__(self, x, y, contour):
+                self.x = x  # coordinates
+                self.y = y
+                self.contour = contour
+
         # prepare image
         image = cv2.imread("./temp/"+f)
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -154,70 +167,96 @@ class ScanSurvey(Frame):
 
         # use contours to detect table quadrants
         contours, _ = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        bubbleBox = contours[2]
+        bubbleBox = sorted(contours, key=lambda c: cv2.contourArea(c))[-4]  # third-largest contour
+
+        # mask irrelevant quadrants
         mask = np.zeros(image.shape[:2], dtype="uint8")
         cv2.rectangle(mask, cv2.boundingRect(bubbleBox), 255, -1)
         masked = cv2.bitwise_and(image, image, mask=mask)
-#        cv2.imwrite("./temp/mask.jpg", masked)
 
-        # detect bubbles
-        gray = cv2.cvtColor(masked, cv2.COLOR_BGR2GRAY)
+        # detect filled bubbles (blurred)
+        blurred = cv2.blur(masked, (10,10))
+        gray = cv2.cvtColor(blurred, cv2.COLOR_BGR2GRAY)
         _, threshold = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
-        bubbles, _ = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        for b in bubbles[1::]:
-            cv2.drawContours(masked, [b], 0, (0, 0, 255), 5)
-        cv2.imwrite("./temp/mask.jpg", masked)
-
-
-        a='''
-            approx = cv2.approxPolyDP(contour, 0.01 * cv2.arcLength(contour, True), True) 
-            cv2.drawContours(image, [contour], 0, (0, 0, 255), 5) 
-            # find center of shape
-            M = cv2.moments(contour)
+        contours, _ = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        
+        bubbles = []
+        for c in contours[1::]:
+            if cv2.contourArea(c, True) < 0:  # duplicate contour indicating hole/uneven filling
+                pass
+            cv2.drawContours(masked, [c], 0, (0, 0, 255), 5)
+            # find center
+            M = cv2.moments(c)
             if M['m00'] != 0.0:
                 x = int(M['m10']/M['m00'])
                 y = int(M['m01']/M['m00'])
-            cv2.putText(image, str(len(approx)), (x, y-5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
-            if np.floor(len(approx)/2) == 3:    # alignment triangles (along right edge)
-                tri.append((x, y))
-            if np.floor(len(approx)/2) == 4:    # alignment squares (along bottom edge)
-                bounds = cv2.boundingRect(contour)
-            elif len(approx) == 11:  # filled circles
-                circ.append((x, y))
-            elif len(approx) != 12:  # not unfilled circles
-#                raise Exception("Unknown Symbol")
-                pass
+                bubbles.append(Bubble(x,y,c))
 
-        assert len(sqr) == 5
+        r = 4  # rounding points
 
-        # calculate vertical boundaries between rows/columns
-        tri = sorted(tri, key=lambda c: c[1])
-        rows = [tri[i][1]+(tri[i+1][1]-tri[i][1])/2 for i in range(len(tri)-2)]
-        sqr = sorted(sqr, key=lambda c: c[0])
-        cols = [sqr[i][0]+(sqr[i+1][0]-sqr[i][0])/2 for i in range(3)]
-
-        # confirm that alignment shapes are roughly straight
-        assert abs(sum([tri[i][0]-tri[i+1][0] for i in range(len(tri)-2)])) < 100
-        assert abs(sum([sqr[i][1]-sqr[i+1][1] for i in range(3)])) < 100
-
-        # transfer filled bubbles to array
-        data = [[0,0,0,0,0]*len(tri)]
-        q = 0  # row (question) index
-        for x, y in sorted(circ, key=lambda c: c[1]):
-            while y > rows[q]:
-                q += 1
-            if x < cols[0]:
-                data[q][0] = 1
-            elif x < cols[1]:
-                data[q][1] = 1
-            elif x < cols[2]:
-                data[q][2] = 1
-            elif x < cols[3]:
-                data[q][3] = 1
+        # detect alignment triangles to determine rows
+        rows = []
+        bubbles = sorted(bubbles, key=lambda c: c.x)
+        sortedBubbles = bubbles[::-1]
+        try:
+            c1 = sortedBubbles[0]
+        except IndexError:
+            messagebox.showerror("Whoops", "Something's wrong.")
+            self.abort()
+        for c2 in sortedBubbles[1::]:
+            if c1.x-r < c2.x < c1.x+r:
+                if abs(c1.y-c2.y) > r:
+                    rows.append(int(c1.y+(c2.y-c1.y)/2))
+                # else is a duplicate contour
+                bubbles.pop()  # note: keep using bubbles as base list, sortedBubbles is only temp!
+                if len(bubbles) == 1:
+                    bubbles.pop()  # corner case for blank sheet (no filled bubbles)
             else:
-                data[q][4] = 1
+                bubbles.pop()
+                break
 
-        return data'''
+        # discard any other duplicate contours
+        n = len(bubbles)
+        i = 0
+        while i < n-1:
+            c1 = bubbles[i]
+            c2 = bubbles[i+1]
+            if abs(c1.x-c2.x) <= r and abs(c1.y-c2.y) <= r:
+                del bubbles[i+1]
+                n -= 1
+            i += 1
+
+        for c in bubbles:
+            cv2.drawContours(masked, [c.contour], 0, (0, 255, 0), 5)
+        cv2.imwrite("./temp/contours.jpg", masked)
+
+        # determine columns using initial bubble box contour
+        bx = [x[0][0] for x in bubbleBox]
+        cw = (max(bx) - min(bx))/6
+        cols = [int(x+cw*i+cw/2) for i in range(1,5)]
+        
+        # convert the rest to bool array
+        bubbleGrid = [[0]*5]*(len(rows)+1)
+        print([(b.x, b.y) for b in bubbles])
+        print(rows)
+        print(cols)
+        for b in bubbles:
+            c, r = len(cols), len(rows)
+            for i in range(len(rows)):
+                if b.y < rows[i]:
+                    r = i
+            for j in range(4):
+                if b.x < cols[j]:
+                    c = j
+            bubbleGrid[r][c] = 1
+
+        os.remove("./temp/contours.jpg")
+        return bubbleGrid
+    
+    def abort(self):
+        for f in os.listdir("./temp/"):
+            os.remove("./temp/"+f)
+        change_window(self, self.root.mmFrame)
 
 class ManageTemplates(Frame):
     def __init__(self, root):
