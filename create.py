@@ -67,7 +67,7 @@ class CreateSurvey(Frame):
             labels = "".join(["<td style='padding: 5px; text-align: center; border-bottom: 1px solid black'>"+s+"</td>" for s in scale]) + "<td style='border-bottom: 1px solid black'>"
             bubbles = "<td style='padding: 5px; text-align: center; font-size: 12pt'>&#x25EF</td>"*5 + "<td style='padding: 5px; font-size: 12pt'>&#x25C2</td>"
 
-            htmlstr = "<tr><td style='padding: 5px; border-right: 1px solid black; border-bottom: 1px solid black'><b>Questions</b></td>"+labels
+            htmlstr = "<tr><td style='padding-left: 10px; border-right: 1px solid black; border-bottom: 1px solid black'><b>Questions</b></td>"+labels
 
             i = 1
             for q in self.questions:
@@ -101,10 +101,10 @@ class CreateSurvey(Frame):
         '''
         pdfkit.from_string(HTMLstring, "./print/"+filename+".pdf",
             options = { 'page-size': 'Letter',
-                        'margin-top': '0.5in',
-                        'margin-right': '0.5in',
-                        'margin-bottom': '0.5in',
-                        'margin-left': '0.5in'},
+                        'margin-top': '0.6in',
+                        'margin-right': '0.6in',
+                        'margin-bottom': '0.6in',
+                        'margin-left': '0.6in'},
         )
         self.back_to_menu()
     

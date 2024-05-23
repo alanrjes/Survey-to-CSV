@@ -82,7 +82,7 @@ class ScanSurvey(Frame):
             messagebox.showerror("Unexpected format", "Alignment symbols were not detected.")
             self.abort()
 
-        approx = 2  # rounding points
+        approx = 5  # rounding points
 
         # discard duplicate contours resulting from uneven filling
         n = len(bubbles)
