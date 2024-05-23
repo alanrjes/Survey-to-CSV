@@ -6,15 +6,23 @@ Developed by Alan Jessup
 
 This application is a lightweight tool for collecting anonymized data from printed Likert scale surveys. It can be used to generate PDF surveys, and analyze PDF scans of a generated template to aggregate the resulting data into a CSV file.
 
-It was developed for the purpose of gathering course evaluation feedback.
+It was developed for the purpose of gathering course evaluation feedback, following the observation that digital course evaluation forms result in a significantly lower participation rate than paper surveys.
 
 ## Installation
 
-Specs? Libraries?
+Executable built using pyinstaller.
+
+Development requires installation of Python 3 and the following Python packages:
+
+- tkinter
+- pdfkit (wkhtmltopdf)
+- pdf2image
+- cv2
+- numpy
 
 ## Usage
 
-To generate a survey:
+To generate a new survey:
 
 - From the main menu, click "Create New Survey".
 - Enter a title, subtitle, and instructions if desired, which will be printed at the top of the page.
@@ -36,7 +44,7 @@ To collect data from surveys:
 
 Upload the CSV file to the spreadsheet program of your choice to analyze the results.
 
-To delete, modify, or print an existing survey template:
+To modify and reprint or to delete an existing survey template:
 
 - From the main menu, click "Manage Survey Templates".
-- TBD
+- Select a survey file, and select an action from the buttons at the top of the window.

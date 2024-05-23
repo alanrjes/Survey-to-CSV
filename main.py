@@ -12,16 +12,16 @@ class Application(Tk):
         self.title("Survey to CSV")
     
         # create utility pages
-        csFrame = CreateSurvey(self)
-        lsFrame = ManageTemplates(self)
-        ssFrame = ScanSurvey(self)
+        self.csFrame = CreateSurvey(self)
+        self.lsFrame = ManageTemplates(self)
+        self.ssFrame = ScanSurvey(self)
 
         # create main menu page
         self.mmFrame = Frame(self)
         Label(self.mmFrame, text="Main Menu").grid()
-        Button(self.mmFrame, text="Create New Survey", width=25, command=lambda: change_window(self.mmFrame, csFrame)).grid()
-        Button(self.mmFrame, text="Manage Survey Templates", width=25, command=lambda: change_window(self.mmFrame, lsFrame)).grid()
-        Button(self.mmFrame, text="Scan Surveys", width=25, command=lambda: change_window(self.mmFrame, ssFrame)).grid()
+        Button(self.mmFrame, text="Create New Survey", width=25, command=lambda: change_window(self.mmFrame, self.csFrame)).grid()
+        Button(self.mmFrame, text="Manage Survey Templates", width=25, command=lambda: change_window(self.mmFrame, self.lsFrame)).grid()
+        Button(self.mmFrame, text="Scan Surveys", width=25, command=lambda: change_window(self.mmFrame, self.ssFrame)).grid()
 
         self.mmFrame.grid()
         self.mainloop()

@@ -27,7 +27,8 @@ class ScanSurvey(Frame):
         for f in os.listdir("./temp/"):
             data = self.scan_image(f)
             os.remove("./temp/"+f)
-            print(data)
+            for row in data:
+                print(row)
         # do something to save to CSV
         change_window(self, self.root.mmFrame)
 
@@ -81,7 +82,7 @@ class ScanSurvey(Frame):
             messagebox.showerror("Unexpected format", "Alignment symbols were not detected.")
             self.abort()
 
-        approx = 4  # rounding points
+        approx = 2  # rounding points
 
         # discard duplicate contours resulting from uneven filling
         n = len(bubbles)
@@ -96,7 +97,7 @@ class ScanSurvey(Frame):
 
         # build grid
         alignSorted = sorted(alignment, key=lambda c: c.y)[::-1]
-        cols = alignSorted[0:5]
+        cols = sorted(alignSorted[0:5], key=lambda c: c.x)
         rows = alignSorted[5::]
         for r in rows:  # format error check
             if cols[-1].x > r.x:

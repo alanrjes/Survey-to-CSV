@@ -69,11 +69,15 @@ class CreateSurvey(Frame):
 
             htmlstr = "<tr><td style='padding: 5px; border-right: 1px solid black; border-bottom: 1px solid black'><b>Questions</b></td>"+labels
 
+            i = 1
             for q in self.questions:
-                htmlstr += '''<tr style="padding: 5px">
-                                <td style="padding: 5px; width: 100%; border-right: 1px solid black">'''+q.get()+'''</td>
+                htmlstr += '''<tr style="border-top: 1px dashed silver">
+                                <td style="padding-right: 10px; padding-top: 10px; padding-bottom: -10px; width: 100%; border-right: 1px solid black">
+                                    <ol style="padding-left: 50px"><li value="'''+str(i)+'">'+q.get()+'''</li></ol>
+                                </td>
                                 '''+bubbles+'''
                             </tr>'''
+                i+=1
             htmlstr += "<tr style='border-right: 1px solid black; border-left: 1px solid black; border-bottom: 1px solid black'><td style='border-right: 1px solid black'></td>"+"<td style='text-align: center'>&#x25B4</td>"*5+"<td></td></tr>"
             
             return "<table style='width: 100%; border-collapse: collapse; border: 1px solid black'>"+htmlstr+"</table>"
@@ -103,3 +107,11 @@ class CreateSurvey(Frame):
                         'margin-left': '0.5in'},
         )
         self.back_to_menu()
+    
+    def load_template(self, preset):
+        self.title.insert(END, preset["title"])
+        self.subtitle.insert(END, preset["subtitle"])
+        self.instructions.insert(END, preset["instructions"])
+        for q in preset["questions"]:
+            self.add_question()
+            self.questions[-1].insert(END, q)
