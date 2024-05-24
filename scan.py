@@ -6,30 +6,49 @@ from pdf2image import convert_from_path
 import cv2
 import numpy as np
 from pathlib import Path
+import csv
 
 class ScanSurvey(Frame):
     def __init__(self, root):
         super().__init__(root)
         self.root=root
-        Button(self, text="Back to Menu", width=25, command=self.abort).grid()
+        Button(self, text="Back to Menu", width=25, command=lambda: self.root.change_window(self)).grid()
         Label(self, text="Scan Surveys").grid()
         Button(self, text="Upload PDF", width=25, command=self.select_file).grid()
         self.scanButton = Button(self, text="Scan selected PDF", width=25, command=self.scan_pages)
+        self.selected = ""
     
     def select_file(self):
-        filename = filedialog.askopenfilename()
-        pages = convert_from_path(filename)
-        for count, page in enumerate(pages):
-            page.save(Path("./temp/page"+str(count)+".jpg"), "JPEG")
+        self.selected = filedialog.askopenfilename()
         self.scanButton.grid()
     
     def scan_pages(self):
-        for f in os.listdir(Path("./temp/")):
+        pages = convert_from_path(self.selected)
+        failedPages = []
+        dataSummary = []
+        for k, page in enumerate(pages, 1):
+            f = Path("./temp/page"+str(k)+".jpg")
+            page.save(f, "JPEG")
             data = self.scan_image(f)
-            os.remove(Path("./temp/"+f))
-            for row in data:
-                print(row)
-        # do something to save to CSV
+            if data == None:
+                failedPages.append(str(k))
+            else:
+                dataSummary.append(data)
+            os.remove(f)
+        
+        with open(Path("./out/" + Path(self.selected).stem + ".csv"), "w") as f:
+            write = csv.writer(f)
+            for block in dataSummary:
+                csvRow = []
+                for row in data:
+                    if row.count(1) == 1:  # otherwise either no answer or multiple answers selected, so ignore
+                        answer = row.index(1) + 1
+                        csvRow.append(answer)
+                write.writerow(csvRow)
+
+        if failedPages != []:
+            messagebox.showerror("Scanning error", "Unable to read the following pages: "+", ".join(failedPages))
+
         self.root.change_window(self)
 
     def scan_image(self, f):
@@ -40,7 +59,7 @@ class ScanSurvey(Frame):
                 self.contour = contour
 
         # prepare image
-        image = cv2.imread(Path("./temp/"+f).absolute().as_posix())
+        image = cv2.imread(f.absolute().as_posix())
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         _, threshold = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
 
@@ -79,8 +98,8 @@ class ScanSurvey(Frame):
 #        cv2.imwrite("./temp/contours.jpg", masked)
 
         if len(alignment) < 5 + len(bubbles):
-            messagebox.showerror("Unexpected format", "Alignment symbols were not detected.")
-            self.abort()
+#            messagebox.showerror("Unexpected format", "Alignment symbols were not detected.")
+            return None  # abort
 
         approx = 5  # rounding points
 
@@ -101,8 +120,8 @@ class ScanSurvey(Frame):
         rows = alignSorted[5::]
         for r in rows:  # format error check
             if cols[-1].x > r.x:
-                messagebox.showerror("Unexpected format", "Alignment symbols were not detected correctly.")
-                self.abort()
+#                messagebox.showerror("Unexpected format", "Alignment symbols were not detected correctly.")
+                return None  # abort
         
         bubbleGrid = [[0]*5 for i in range(len(rows))]
 
@@ -117,13 +136,8 @@ class ScanSurvey(Frame):
                     c = j
                     break
             if r==None or c==None:  # grid error check
-                messagebox.showerror("Irregular grid", "Filled bubbles did not match alignment grid.")
-                self.abort()
+#                messagebox.showerror("Irregular grid", "Filled bubbles did not match alignment grid.")
+                return None  # abort
             bubbleGrid[r][c] = 1
 
         return bubbleGrid[::-1]
-    
-    def abort(self):
-        for f in os.listdir(Path("./temp/")):
-            os.remove(Path("./temp/"+f))
-        self.root.change_window(self)

@@ -28,26 +28,33 @@ class CreateSurvey(Frame):
         Button(self, text="Add Question", command=self.add_question).grid(row=5, column=0)
         Button(self, text="Delete Question", command=self.delete_question).grid(row=5, column=1)
         self.questions = []
+        self.qnums = []
+        self.questionFrame = Frame(self)
+        self.questionFrame.grid()
 
         self.filename = None
         self.replace = False  # for template renaming, delete previous-named file
     
     def add_question(self):
         i = len(self.questions)
-        q = Entry(self)
-        q.grid(row=i+6, column=0)
+        n = Label(self.questionFrame, text=str(i+1)+". ")
+        n.grid(row=i+6, column=0)
+        self.qnums.append(n)
+        q = Entry(self.questionFrame)
+        q.grid(row=i+6, column=1)
         self.questions.append(q)
     
     def delete_question(self):
         if len(self.questions)>0:
             q = self.questions.pop()
+            n = self.qnums.pop()
             q.destroy()
+            n.destroy()
     
     def back_to_menu(self):
         # clear question fields
-        for q in self.questions:
-            q.destroy()
-        self.questions = []
+        while self.questions:
+            self.delete_question()
         self.title.delete(0, 'end')
         self.subtitle.delete(0, 'end')
         self.instructions.delete(0, 'end')
@@ -122,7 +129,7 @@ class CreateSurvey(Frame):
                         "questions": [q.get() for q in self.questions]}
 
         # save to JSON
-        with open(Path("./templates/"+self.filename+".json"), "w+") as f:
+        with open(Path("./templates/"+self.filename+".json"), "w") as f:
             json.dump(templateDict, f)
 
         messagebox.showinfo("Saved", "Saved as template")
