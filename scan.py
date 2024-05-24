@@ -5,7 +5,7 @@ from tkinter import messagebox
 from pdf2image import convert_from_path
 import cv2
 import numpy as np
-from utility import change_window
+from pathlib import Path
 
 class ScanSurvey(Frame):
     def __init__(self, root):
@@ -20,17 +20,17 @@ class ScanSurvey(Frame):
         filename = filedialog.askopenfilename()
         pages = convert_from_path(filename)
         for count, page in enumerate(pages):
-            page.save(f'./temp/page{count}.jpg', 'JPEG')
+            page.save(Path("./temp/page"+str(count)+".jpg"), "JPEG")
         self.scanButton.grid()
     
     def scan_pages(self):
-        for f in os.listdir("./temp/"):
+        for f in os.listdir(Path("./temp/")):
             data = self.scan_image(f)
-            os.remove("./temp/"+f)
+            os.remove(Path("./temp/"+f))
             for row in data:
                 print(row)
         # do something to save to CSV
-        change_window(self, self.root.mmFrame)
+        self.root.change_window(self)
 
     def scan_image(self, f):
         class Bubble:  # local helper data structure limited to scope of scan_image method
@@ -40,7 +40,7 @@ class ScanSurvey(Frame):
                 self.contour = contour
 
         # prepare image
-        image = cv2.imread("./temp/"+f)
+        image = cv2.imread(Path("./temp/"+f).absolute().as_posix())
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         _, threshold = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
 
@@ -124,6 +124,6 @@ class ScanSurvey(Frame):
         return bubbleGrid[::-1]
     
     def abort(self):
-        for f in os.listdir("./temp/"):
-            os.remove("./temp/"+f)
-        change_window(self, self.root.mmFrame)
+        for f in os.listdir(Path("./temp/")):
+            os.remove(Path("./temp/"+f))
+        self.root.change_window(self)

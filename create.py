@@ -3,15 +3,17 @@ from tkinter import *
 from tkinter import filedialog
 from tkinter import messagebox
 import pdfkit
-from utility import change_window
+import json
+from pathlib import Path
 
 class CreateSurvey(Frame):
     def __init__(self, root):
         self.root=root
         super().__init__(root)
         Button(self, text="Back to Menu", width=25, command=self.back_to_menu).grid(row=0, column=0)
-        Button(self, text="Save and Print Survey", width=25, command=self.print_survey).grid(row=0, column=1)
-        Label(self, text="Create Survey").grid(row=1, columnspan=2)
+        Label(self, text="Create Survey").grid(row=1, columnspan=3)
+        Button(self, text="Save Template", width=25, command=self.save_template).grid(row=1, column=0)
+        Button(self, text="Print to PDF", width=25, command=self.print_survey).grid(row=1, column=1)
 
         Label(self, text="Survey title:").grid(row=2, column=0)
         self.title = Entry(self)
@@ -26,6 +28,9 @@ class CreateSurvey(Frame):
         Button(self, text="Add Question", command=self.add_question).grid(row=5, column=0)
         Button(self, text="Delete Question", command=self.delete_question).grid(row=5, column=1)
         self.questions = []
+
+        self.filename = None
+        self.replace = False  # for template renaming, delete previous-named file
     
     def add_question(self):
         i = len(self.questions)
@@ -46,20 +51,23 @@ class CreateSurvey(Frame):
         self.title.delete(0, 'end')
         self.subtitle.delete(0, 'end')
         self.instructions.delete(0, 'end')
-        change_window(self, self.root.mmFrame)
+        self.root.change_window(self)
+    
+    @staticmethod
+    def naming_shenanigans(name, directory):
+        if name == "":
+            name = "Survey"
+        i = 1
+        usedNames = os.listdir(directory)
+        tempName = name
+        while tempName+".pdf" in usedNames:
+            tempName = name + "("+str(i)+")"
+            i+=1
+        return tempName
+
     
     def print_survey(self):
-        # file naming shenanigans
-        filename = self.title.get()
-        if filename == "":
-            filename = "Survey"
-        i = 1
-        usedNames = os.listdir("./print")
-        tempName = filename
-        while tempName+".pdf" in usedNames:
-            tempName = filename + "("+str(i)+")"
-            i+=1
-        filename = tempName
+        self.filename = self.naming_shenanigans(self.title.get(), Path("./print"))
         
         # build PDF
         def print_questions():  # helper for printing out questions & bubbles
@@ -82,15 +90,6 @@ class CreateSurvey(Frame):
             
             return "<table style='width: 100%; border-collapse: collapse; border: 1px solid black'>"+htmlstr+"</table>"
 
-#                <p>Answer the questions in this survey using the following scale of agreement:</p>
-#                <ul style="list-style-type:none">
-#                    <li>1 - Strongly disagree</li>
-#                    <li>2 - Somewhat disagree</li>
-#                    <li>3 - Neutral</li>
-#                    <li>4 - Somewhat agree</li>
-#                    <li>5 - Strongly agree</li>
-#                </ul>
-
         HTMLstring = '''
             <h1>'''+self.title.get()+'''</h1>
             <h2>'''+self.subtitle.get()+'''</h2>
@@ -99,16 +98,38 @@ class CreateSurvey(Frame):
                 '''+print_questions()+'''
             </body>
         '''
-        pdfkit.from_string(HTMLstring, "./print/"+filename+".pdf",
+
+        # save to PDF
+        pdfkit.from_string(HTMLstring, Path("./print/"+self.filename+".pdf"),
             options = { 'page-size': 'Letter',
                         'margin-top': '0.6in',
                         'margin-right': '0.6in',
                         'margin-bottom': '0.6in',
                         'margin-left': '0.6in'},
         )
-        self.back_to_menu()
+
+        messagebox.showinfo("Saved", "Printed to PDF")
+
+    def save_template(self):
+        if self.replace:  # case of editing template; erase previous version
+            os.remove(Path("./templates/"+self.filename))
+        
+        self.filename = self.naming_shenanigans(self.title.get(), Path("./templates"))
+
+        templateDict = {"title": self.title.get(),
+                        "subtitle": self.subtitle.get(),
+                        "instructions": self.instructions.get(),
+                        "questions": [q.get() for q in self.questions]}
+
+        # save to JSON
+        with open(Path("./templates/"+self.filename+".json"), "w+") as f:
+            json.dump(templateDict, f)
+
+        messagebox.showinfo("Saved", "Saved as template")
     
-    def load_template(self, preset):
+    def load_template(self, filename, preset, replace):  # replace parameter is True if editing and False if duplicating
+        self.replace = replace
+        self.filename = filename
         self.title.insert(END, preset["title"])
         self.subtitle.insert(END, preset["subtitle"])
         self.instructions.insert(END, preset["instructions"])
