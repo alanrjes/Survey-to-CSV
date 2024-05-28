@@ -24,14 +24,14 @@ class ScanSurvey(Frame):
     
     def scan_pages(self):
         pages = convert_from_path(self.selected)
-        failedPages = []
+        failedPages = {}
         dataSummary = []
         for k, page in enumerate(pages, 1):
             f = Path("./temp/page"+str(k)+".jpg")
             page.save(f, "JPEG")
             data = self.scan_image(f)
-            if data == None:
-                failedPages.append(str(k))
+            if type(data) == str:
+                failedPages[str(k)] = data
             else:
                 dataSummary.append(data)
             os.remove(f)
@@ -46,8 +46,8 @@ class ScanSurvey(Frame):
                         csvRow.append(answer)
                 write.writerow(csvRow)
 
-        if failedPages != []:
-            messagebox.showerror("Scanning error", "Unable to read the following pages: "+", ".join(failedPages))
+        if failedPages != {}:
+            messagebox.showerror("Scanning error", "Unable to read the following pages:\n"+"\n".join([f+": "+failedPages[f] for f in failedPages.keys()]))
 
         self.root.change_window(self)
 
@@ -94,14 +94,13 @@ class ScanSurvey(Frame):
                 else:  # is a filled bubble
                     bubbles.append(Bubble(x,y,c))
                     cv2.drawContours(masked, [c], 0, (0, 255, 0), 5)
-
-#        cv2.imwrite("./temp/contours.jpg", masked)
+        
+#        cv2.imwrite("./temp/"+str(f.stem)+"-contours.jpg", masked)
 
         if len(alignment) < 5 + len(bubbles):
-#            messagebox.showerror("Unexpected format", "Alignment symbols were not detected.")
-            return None  # abort
+            return "Alignment symbols not detected properly at position 1."
 
-        approx = 5  # rounding points
+        approx = 10  # rounding points
 
         # discard duplicate contours resulting from uneven filling
         n = len(bubbles)
@@ -120,24 +119,29 @@ class ScanSurvey(Frame):
         rows = alignSorted[5::]
         for r in rows:  # format error check
             if cols[-1].x > r.x:
-#                messagebox.showerror("Unexpected format", "Alignment symbols were not detected correctly.")
-                return None  # abort
+                return "Alignment symbols not detected properly at position 2."
         
         bubbleGrid = [[0]*5 for i in range(len(rows))]
 
         for b in bubbles:
             r,c = None, None
+            minXDif, minYDif = None, None
             for i in range(len(rows)):
+                if minYDif==None or abs(b.y - rows[i].y) <= minYDif:
+                    minYDif = abs(b.y - rows[i].y)
                 if abs(b.y - rows[i].y) <= approx:
                     r = i
                     break
             for j in range(5):
+                if minXDif==None or abs(b.x - cols[j].x) <= minXDif:
+                    minXDif = abs(b.x - cols[j].x)
                 if abs(b.x - cols[j].x) <= approx:
                     c = j
                     break
             if r==None or c==None:  # grid error check
-#                messagebox.showerror("Irregular grid", "Filled bubbles did not match alignment grid.")
-                return None  # abort
+                cv2.drawContours(masked, [b.contour], 0, (255, 0, 0), 5)
+#                cv2.imwrite("./temp/"+str(f.stem)+"-contours.jpg", masked)
+                return "Bubbles did not match grid by "+str(minXDif)+", "+str(minYDif)+" points."
             bubbleGrid[r][c] = 1
 
         return bubbleGrid[::-1]
