@@ -10,15 +10,7 @@ It was developed for the purpose of gathering course evaluation feedback, follow
 
 ## Installation
 
-Executable built using pyinstaller.
-
-Development requires installation of Python 3 and the following Python packages:
-
-- tkinter
-- pdfkit (wkhtmltopdf)
-- pdf2image
-- cv2
-- numpy
+TBD
 
 ## Usage
 
