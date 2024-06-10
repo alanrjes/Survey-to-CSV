@@ -40,7 +40,7 @@ class ScanSurvey(Frame):
             write = csv.writer(f)
             for block in dataSummary:
                 csvRow = []
-                for row in data:
+                for row in block:
                     if row.count(1) == 1:  # otherwise either no answer or multiple answers selected, so ignore
                         answer = row.index(1) + 1
                         csvRow.append(answer)
@@ -57,15 +57,20 @@ class ScanSurvey(Frame):
                 self.x = x  # coordinates
                 self.y = y
                 self.contour = contour
+                self.cluster = False  # flag for clustered contours indicate messily-filled in answer
 
         # prepare image
         image = cv2.imread(f.absolute().as_posix())
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        _, threshold = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+        _, threshold = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
 
         # use contours to detect table quadrants
         contours, _ = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        if len(contours) < 3:
+            return "Failed to find bubble box contour."
         bubbleBox = sorted(contours, key=lambda c: cv2.contourArea(c))[-4]  # third-largest contour
+        cv2.drawContours(image, [bubbleBox], 0, (0, 255, 0), 5)
+        cv2.imwrite("./temp/"+str(f.stem)+"-contours.jpg", image)
 
         # mask irrelevant quadrants
         mask = np.zeros(image.shape[:2], dtype="uint8")
@@ -77,9 +82,9 @@ class ScanSurvey(Frame):
         gray = cv2.cvtColor(blurred, cv2.COLOR_BGR2GRAY)
         _, threshold = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
         contours, _ = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        
-        bubbles = []
-        alignment = []
+
+        # convert to bubble objects
+        contourObjs = []
         for c in contours[1::]:
             if cv2.contourArea(c, True) < 0:  # duplicate contour indicating hole/uneven filling
                 continue
@@ -88,30 +93,40 @@ class ScanSurvey(Frame):
             if M['m00'] != 0.0:
                 x = int(M['m10']/M['m00'])
                 y = int(M['m01']/M['m00'])
-                if len(c) < 20:  # is an alignment triangle
-                    alignment.append(Bubble(x,y,c))
-                    cv2.drawContours(masked, [c], 0, (0, 0, 255), 5)
-                else:  # is a filled bubble
-                    bubbles.append(Bubble(x,y,c))
-                    cv2.drawContours(masked, [c], 0, (0, 255, 0), 5)
-        
-#        cv2.imwrite("./temp/"+str(f.stem)+"-contours.jpg", masked)
+                contourObjs.append(Bubble(x, y, c))
 
-        if len(alignment) < 5 + len(bubbles):
-            return "Alignment symbols not detected properly at position 1."
-
-        approx = 10  # rounding points
-
-        # discard duplicate contours resulting from uneven filling
-        n = len(bubbles)
+        # remove repeat/clustered contours caused by uneven filling
+        contourObjs = sorted(contourObjs, key=lambda c: c.x+c.y)
+        approx = 20  # rounding points
+        n = len(contourObjs)
         i = 0
         while i < n-1:
-            c1 = bubbles[i]
-            c2 = bubbles[i+1]
+            c1 = contourObjs[i]
+            c2 = contourObjs[i+1]
             if abs(c1.x-c2.x) <= approx and abs(c1.y-c2.y) <= approx:
-                del bubbles[i+1]
+                del contourObjs[i+1]
+                c1.cluster = True
                 n -= 1
-            i += 1
+            else:
+                i += 1
+
+        # sort contours into bubbles and alignment symbols
+        bubbles = []
+        alignment = []
+        for c in contourObjs:
+            if len(c.contour) < 20 and not c.cluster:
+                alignment.append(c)
+            else:
+                bubbles.append(c)
+
+        # draw contours to temp file for debugging purposes
+        for a in alignment:
+            cv2.drawContours(masked, [a.contour], 0, (0, 0, 255), 5)
+            cv2.putText(masked, str(len(a.contour)), (a.x-50,a.y), 0, 1, (0, 0, 0), 2)
+        for b in bubbles:
+            cv2.drawContours(masked, [b.contour], 0, (0, 255, 0), 5)
+            cv2.putText(masked, str(len(b.contour)), (b.x-50,b.y), 0, 1, (0, 0, 0), 2)
+        cv2.imwrite("./temp/"+str(f.stem)+"-mask.jpg", masked)
 
         # build grid
         alignSorted = sorted(alignment, key=lambda c: c.y)[::-1]
@@ -140,7 +155,6 @@ class ScanSurvey(Frame):
                     break
             if r==None or c==None:  # grid error check
                 cv2.drawContours(masked, [b.contour], 0, (255, 0, 0), 5)
-#                cv2.imwrite("./temp/"+str(f.stem)+"-contours.jpg", masked)
                 return "Bubbles did not match grid by "+str(minXDif)+", "+str(minYDif)+" points."
             bubbleGrid[r][c] = 1
 
