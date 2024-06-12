@@ -32,6 +32,7 @@ class ScanSurvey(Frame):
             data = self.scan_image(f)
             if type(data) == str:
                 failedPages[str(k)] = data
+                dataSummary.append(None)
             else:
                 dataSummary.append(data)
             os.remove(f)
@@ -39,12 +40,17 @@ class ScanSurvey(Frame):
         with open(Path("./out/" + Path(self.selected).stem + ".csv"), "w") as f:
             write = csv.writer(f)
             for block in dataSummary:
-                csvRow = []
-                for row in block:
-                    if row.count(1) == 1:  # otherwise either no answer or multiple answers selected, so ignore
-                        answer = row.index(1) + 1
-                        csvRow.append(answer)
-                write.writerow(csvRow)
+                if block == None:
+                    write.writerow(["No data"])
+                else:
+                    csvRow = []
+                    for row in block:
+                        if row.count(1) == 1:
+                            answer = row.index(1) + 1
+                            csvRow.append(answer)
+                        else: # otherwise either no answer or multiple answers selected, may require review
+                            csvRow.append("?")
+                    write.writerow(csvRow)
 
         if failedPages != {}:
             messagebox.showerror("Scanning error", "Unable to read the following pages:\n"+"\n".join([f+": "+failedPages[f] for f in failedPages.keys()]))
@@ -70,7 +76,7 @@ class ScanSurvey(Frame):
             return "Failed to find bubble box contour."
         bubbleBox = sorted(contours, key=lambda c: cv2.contourArea(c))[-4]  # third-largest contour
         cv2.drawContours(image, [bubbleBox], 0, (0, 255, 0), 5)
-        cv2.imwrite("./temp/"+str(f.stem)+"-contours.jpg", image)
+#        cv2.imwrite("./temp/"+str(f.stem)+"-contours.jpg", image)
 
         # mask irrelevant quadrants
         mask = np.zeros(image.shape[:2], dtype="uint8")
@@ -118,6 +124,20 @@ class ScanSurvey(Frame):
                 alignment.append(c)
             else:
                 bubbles.append(c)
+        
+        # confirm alignment contours align to grid (else should be bubble)
+        n = len(alignment)
+        i = 0
+        medX = sorted(alignment, key=lambda c: c.x)[-1].x
+        medY = sorted(alignment, key=lambda c: c.y)[-1].y
+        while i < n-1:
+            a = alignment[i]
+            if abs(a.x-medX) > approx and abs(a.y-medY) > approx:
+                del alignment[i]
+                bubbles.append(a)
+                n -= 1
+            else:
+                i += 1
 
         # draw contours to temp file for debugging purposes
         for a in alignment:
@@ -126,7 +146,7 @@ class ScanSurvey(Frame):
         for b in bubbles:
             cv2.drawContours(masked, [b.contour], 0, (0, 255, 0), 5)
             cv2.putText(masked, str(len(b.contour)), (b.x-50,b.y), 0, 1, (0, 0, 0), 2)
-        cv2.imwrite("./temp/"+str(f.stem)+"-mask.jpg", masked)
+#        cv2.imwrite("./temp/"+str(f.stem)+"-mask.jpg", masked)
 
         # build grid
         alignSorted = sorted(alignment, key=lambda c: c.y)[::-1]
