@@ -125,7 +125,10 @@ class ScanSurvey(Frame):
             else:
                 bubbles.append(c)
         
-        # confirm alignment contours align to grid (else should be bubble)
+        if len(alignment) < 5:  # error case
+            return "Not enough alignment symbols detected."
+        
+        # confirm alignment contours align to grid
         n = len(alignment)
         i = 0
         medX = sorted(alignment, key=lambda c: c.x)[-1].x
@@ -154,7 +157,7 @@ class ScanSurvey(Frame):
         rows = alignSorted[5::]
         for r in rows:  # format error check
             if cols[-1].x > r.x:
-                return "Alignment symbols not detected properly at position 2."
+                return "Alignment symbols do not align to expected axis."
         
         bubbleGrid = [[0]*5 for i in range(len(rows))]
 
