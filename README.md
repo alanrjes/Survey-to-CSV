@@ -4,13 +4,25 @@ Developed by Alan Jessup
 
 ## Overview
 
-This application is a lightweight tool for collecting anonymized data from printed Likert scale surveys. It can be used to generate PDF surveys, and analyze PDF scans of a generated template to aggregate the resulting data into a CSV file.
+This application is a simple tool for collecting anonymized data from printed Likert scale surveys. It can be used to generate PDF surveys, and analyze PDF scans of a generated template to aggregate the resulting data into a CSV file.
 
 It was developed for the purpose of gathering course evaluation feedback, following the observation that digital course evaluation forms result in a significantly lower participation rate than paper surveys.
 
 ## Installation
 
-TBD
+Not packaged for distribution.
+
+To use, must have Python 3 with the following packages installed:
+
+- tkinter
+- pdfkit
+- json
+- pathlib
+- pdf2image
+- cv2
+- numpy
+
+Create empty directories labled "out", "temp", and "templates" in same directory with python scripts.
 
 ## Usage
 
