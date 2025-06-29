@@ -23,41 +23,60 @@ class ScanSurvey(Frame):
         self.scanButton.grid()
     
     def scan_pages(self):
-        pages = convert_from_path(self.selected)
-        failedPages = {}
-        dataSummary = []
-        for k, page in enumerate(pages, 1):
-            f = Path("./temp/page"+str(k)+".jpg")
-            page.save(f, "JPEG")
-            data = self.scan_image(f)
-            if type(data) == str:
-                failedPages[str(k)] = data
-                dataSummary.append(None)
-            else:
-                dataSummary.append(data)
-            os.remove(f)
+        quality = 0
+        bestData = []
+        for threshy in [97, 102]:  # run twice to get better of 2 threshholds due to variation of scan quality
+            pages = convert_from_path(self.selected)
+            failedPages = {}
+            dataSummary = []
+            for k, page in enumerate(pages, 1):
+                f = Path("./temp/page"+str(k)+".jpg")
+                page.save(f, "JPEG")
+                data = self.scan_image(f, threshy)
+                if type(data) == str:
+                    failedPages[str(k)] = data
+                    dataSummary.append(None)
+                else:
+                    dataSummary.append(data)
+                os.remove(f)
         
-        with open(Path("./out/" + Path(self.selected).stem + ".csv"), "w") as f:
-            write = csv.writer(f)
+            qualityCounter = 0
+            totalCounter = 13*len(dataSummary)
+            csvData = []
             for block in dataSummary:
                 if block == None:
-                    write.writerow(["No data"])
+                    csvData.append(["No data"])
                 else:
                     csvRow = []
                     for row in block:
                         if row.count(1) == 1:
                             answer = row.index(1) + 1
                             csvRow.append(answer)
+                            qualityCounter += 1
                         else: # otherwise either no answer or multiple answers selected, may require review
                             csvRow.append("?")
-                    write.writerow(csvRow)
+                    csvData.append(csvRow)
+            itrQuality = qualityCounter/totalCounter*100
+            if itrQuality > quality:
+                bestData = csvData
+                quality = itrQuality
+            
+        with open(Path("./out/" + Path(self.selected).stem + ".csv"), "w") as f:
+            write = csv.writer(f)
+            for row in bestData:
+                write.writerow(row)
 
-        if failedPages != {}:
-            messagebox.showerror("Scanning error", "Unable to read the following pages:\n"+"\n".join([f+": "+failedPages[f] for f in failedPages.keys()]))
+#        if failedPages != {}:
+#            messagebox.showerror("Scanning error", "Unable to read the following pages:\n"+"\n".join([f+": "+failedPages[f] for f in failedPages.keys()]))
+        
+        if quality == 100:
+            messagebox.showinfo("Complete", "Able to read 100 percent")
+        else:
+            messagebox.showwarning("Incomplete data", str(int(quality))+" percent able to read")
 
         self.root.change_window(self)
 
-    def scan_image(self, f):
+    def scan_image(self, f, threshy):
         class Bubble:  # local helper data structure limited to scope of scan_image method
             def __init__(self, x, y, contour):
                 self.x = x  # coordinates
@@ -76,7 +95,7 @@ class ScanSurvey(Frame):
             return "Failed to find bubble box contour."
         bubbleBox = sorted(contours, key=lambda c: cv2.contourArea(c))[-4]  # third-largest contour
         cv2.drawContours(image, [bubbleBox], 0, (0, 255, 0), 5)
-#        cv2.imwrite("./temp/"+str(f.stem)+"-contours.jpg", image)
+        cv2.imwrite("./temp/"+str(f.stem)+"-contours.jpg", image)       # debugging line
 
         # mask irrelevant quadrants
         mask = np.zeros(image.shape[:2], dtype="uint8")
@@ -86,7 +105,7 @@ class ScanSurvey(Frame):
         # detect filled bubbles (blurred)
         blurred = cv2.blur(masked, (10,10))
         gray = cv2.cvtColor(blurred, cv2.COLOR_BGR2GRAY)
-        _, threshold = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+        _, threshold = cv2.threshold(gray, threshy, 255, cv2.THRESH_BINARY)  # adjust here for detecting rows (anything darker than arg2 becomes black)
         contours, _ = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
         # convert to bubble objects
@@ -103,7 +122,7 @@ class ScanSurvey(Frame):
 
         # remove repeat/clustered contours caused by uneven filling
         contourObjs = sorted(contourObjs, key=lambda c: c.x+c.y)
-        approx = 20  # rounding points
+        approx = 30  # rounding points
         n = len(contourObjs)
         i = 0
         while i < n-1:
@@ -149,7 +168,7 @@ class ScanSurvey(Frame):
         for b in bubbles:
             cv2.drawContours(masked, [b.contour], 0, (0, 255, 0), 5)
             cv2.putText(masked, str(len(b.contour)), (b.x-50,b.y), 0, 1, (0, 0, 0), 2)
-#        cv2.imwrite("./temp/"+str(f.stem)+"-mask.jpg", masked)
+        cv2.imwrite("./temp/"+str(f.stem)+"-mask.jpg", masked)         # debugging line
 
         # build grid
         alignSorted = sorted(alignment, key=lambda c: c.y)[::-1]
